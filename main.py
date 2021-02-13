@@ -5,10 +5,12 @@
 
 import time
 import urllib
+import logging
 import requests
 from telebot import TeleBot, types, apihelper
 
 bot = TeleBot("REPLACE YOUR TOKEN HERE")
+shouldBotLog = True  # if False bot will not create and keep log.log file
 
 
 def get_status(command, page):
@@ -17,7 +19,8 @@ def get_status(command, page):
         response = urllib.request.urlopen(link)
         return response.getcode()
     except Exception as e:
-        print(f"Error:  {link} : {str(e)}")
+        if shouldBotLog:
+            logging.info(f"[Info] {link} : {str(e)}")
         return None
 
 
@@ -45,7 +48,8 @@ def default_query(inline_query):
         empty = types.InlineQueryResultArticle()
         bot.answer_inline_query(inline_query.id, empty)
     except Exception as e:
-        print(e)
+        if shouldBotLog:
+            logging.info(f"[Info] {str(e)}")
 
 
 @bot.inline_handler(lambda query: len(query.query) >= 1)
@@ -124,12 +128,21 @@ def query_text(query):
                 f"https://man.archlinux.org/man/{query.query}.9",
             )
             answers.append(answer9)
-        bot.answer_inline_query(query.id, answers)
+        bot.answer_inline_query(query.id, answers, is_personal=False)
     except Exception as e:
-        print(e)
+        if shouldBotLog:
+            logging.error(f"[Error] {str(e)}")
 
 
 if __name__ == "__main__":
+    if shouldBotLog:
+        logging.getLogger("requests").setLevel(logging.CRITICAL)
+        logging.basicConfig(
+            format="[%(asctime)s] %(filename)s:%(lineno)d %(levelname)s - %(message)s",
+            level=logging.INFO,
+            filename="log.log",
+            datefmt="%d.%m.%Y %H:%M:%S",
+        )
     while True:
         try:
             bot.polling(none_stop=True)
