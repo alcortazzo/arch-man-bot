@@ -38,7 +38,8 @@ def results_compiler(id, title, description, message):
 def cmd_start(message):
     bot.send_message(
         message.chat.id,
-        "This bot can search man-pages in man.archlinux.org for you in in-line mode",
+        "This is an <a href='https://github.com/alcortazzo/arch-man-bot'>open source</a> bot that can search man-pages on man.archlinux.org for you in in-line mode",
+        parse_mode="html",
     )
 
 
