@@ -16,6 +16,9 @@ $ cd arch-man-bot
 # install the requirements
 $ python3 -m pip install -r requirements.txt
 
+# set the environment variable "arch_man_bot_token" to register a token for the bot
+$ export arch_man_bot_token=yourtoken
+
 # launch the bot
 $ python main.py
 ```

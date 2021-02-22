@@ -3,13 +3,20 @@
 
 # Made by @alcortazzo
 
+import sys
 import time
 import urllib
+from os import getenv
 import logging
 import requests
 from telebot import TeleBot, types, apihelper
 
-bot = TeleBot("REPLACE YOUR TOKEN HERE")
+
+Bot_TOKEN = getenv("arch_man_bot_token")
+if Bot_TOKEN is None:
+    sys.exit("You must set <arch_man_bot_token> environment variable!")
+
+bot = TeleBot(Bot_TOKEN)
 shouldBotLog = True  # if False bot will not create and keep log.log file
 
 
