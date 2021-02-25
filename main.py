@@ -25,10 +25,9 @@ def get_status(command, page):
     try:
         response = urllib.request.urlopen(link)
         return response.getcode()
-    except Exception as e:
+    except urllib.error.URLError as e:
         if shouldBotLog:
             logging.info(f"[Info] {link} : {str(e)}")
-        return None
 
 
 def results_compiler(id, title, description, message):
@@ -52,8 +51,8 @@ def cmd_start(message):
 
 @bot.inline_handler(lambda query: len(query.query) == 0)
 def default_query(inline_query):
+    empty = types.InlineQueryResultArticle()
     try:
-        empty = types.InlineQueryResultArticle()
         bot.answer_inline_query(inline_query.id, empty)
     except Exception as e:
         if shouldBotLog:
