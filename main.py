@@ -44,8 +44,21 @@ def results_compiler(id, title, description, message):
 def cmd_start(message):
     bot.send_message(
         message.chat.id,
-        "This is an <a href='https://github.com/alcortazzo/arch-man-bot'>open source</a> bot that can search man-pages on man.archlinux.org for you in in-line mode",
+        "This is an <a href='https://github.com/alcortazzo/arch-man-bot'>open source</a> bot that can search man-pages on man.archlinux.org for you in in-line mode or directly in this chat."
+        + "\n\n/help for more info.",
         parse_mode="html",
+        disable_web_page_preview=True,
+    )
+
+
+@bot.message_handler(commands=["help"])
+def cmd_help(message):
+    bot.send_message(
+        message.chat.id,
+        "To search with this bot you can easily type @archmanbot and then something you want to search. For example:"
+        + "\n\n`@archmanbot lsblk`\n`@archmanbot man`\n`@archmanbot cfdisk`"
+        + "\n\nOr just send your command in this chat!",
+        parse_mode="Markdown",
     )
 
 
@@ -79,6 +92,25 @@ def query_text(query):
     except Exception as e:
         if shouldBotLog:
             logging.error(f"[Error] {str(e)}")
+
+
+@bot.message_handler(
+    func=lambda message: message.content_type == "text"
+    and message.text.lower() != "/help"
+    and message.text.lower() != "/start"
+    and message.text != ""
+)
+def message_answer(message):
+    man_page_categories = ("1", "2", "3", "4", "5", "6", "7", "8", "9")
+    for category in man_page_categories:
+        if get_status(message.text, category) == 200:
+            try:
+                bot.send_message(
+                    message.chat.id,
+                    f"https://man.archlinux.org/man/{message.text}.{category}",
+                )
+            except Exception as e:
+                logging.error(f"[Error] {str(e)}")
 
 
 if __name__ == "__main__":
