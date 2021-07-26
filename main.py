@@ -1,15 +1,10 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 # Made by @alcortazzo
 
 import sys
 import time
 import urllib
 from os import getenv
-import logging
-import requests
-from telebot import TeleBot, types, apihelper
+from telebot import TeleBot, types
 
 
 Bot_TOKEN = getenv("arch_man_bot_token")
@@ -25,9 +20,9 @@ def get_status(command, page):
     try:
         response = urllib.request.urlopen(link)
         return response.getcode()
-    except urllib.error.URLError as e:
+    except urllib.error.URLError as ex:
         if shouldBotLog:
-            logging.info(f"[Info] {link} : {str(e)}")
+            logger.info(f"{link} : {str(ex)}")
 
 
 def results_compiler(id, title, description, message):
@@ -44,8 +39,10 @@ def results_compiler(id, title, description, message):
 def cmd_start(message):
     bot.send_message(
         message.chat.id,
-        "This is an <a href='https://github.com/alcortazzo/arch-man-bot'>open source</a> bot that can search man-pages on man.archlinux.org for you in in-line mode or directly in this chat."
-        + "\n\n/help for more info.",
+        "This is an <a href='https://github.com/alcortazzo/arch-man-bot'>open source</a> "
+        "bot that can search man-pages on man.archlinux.org for you in in-line mode or "
+        "directly in this chat."
+        "\n\n/help for more info.",
         parse_mode="html",
         disable_web_page_preview=True,
     )
@@ -55,9 +52,10 @@ def cmd_start(message):
 def cmd_help(message):
     bot.send_message(
         message.chat.id,
-        "To search with this bot you can easily type @archmanbot and then something you want to search. For example:"
-        + "\n\n`@archmanbot lsblk`\n`@archmanbot man`\n`@archmanbot cfdisk`"
-        + "\n\nOr just send your command in this chat!",
+        "To search with this bot you can easily type @archmanbot and then something you "
+        "want to search. For example:"
+        "\n\n`@archmanbot lsblk`\n`@archmanbot man`\n`@archmanbot cfdisk`"
+        "\n\nOr just send your command in this chat!",
         parse_mode="Markdown",
     )
 
@@ -67,17 +65,16 @@ def default_query(inline_query):
     empty = types.InlineQueryResultArticle()
     try:
         bot.answer_inline_query(inline_query.id, empty)
-    except Exception as e:
+    except Exception as ex:
         if shouldBotLog:
-            logging.info(f"[Info] {str(e)}")
+            logger.info(str(ex))
 
 
 @bot.inline_handler(lambda query: len(query.query) >= 1)
 def query_text(query):
     answers = []
-    man_page_categories = ("1", "2", "3", "4", "5", "6", "7", "8", "9")
 
-    for category in man_page_categories:
+    for category in range(1, 10):
         if get_status(query.query, category) == 200:
             answer = results_compiler(
                 category,
@@ -89,41 +86,59 @@ def query_text(query):
 
     try:
         bot.answer_inline_query(query.id, answers, is_personal=False)
-    except Exception as e:
+    except Exception as ex:
         if shouldBotLog:
-            logging.error(f"[Error] {str(e)}")
+            logger.error(f"[{type(ex).__name__}] in query_text(): {str(ex)}")
 
 
 @bot.message_handler(
-    func=lambda message: message.content_type == "text"
-    and message.text.lower() != "/help"
-    and message.text.lower() != "/start"
-    and message.text != ""
+    func=lambda message: message.content_type == "text" and message.text
 )
 def message_answer(message):
-    man_page_categories = ("1", "2", "3", "4", "5", "6", "7", "8", "9")
-    for category in man_page_categories:
+    for category in range(1, 10):
         if get_status(message.text, category) == 200:
             try:
                 bot.send_message(
                     message.chat.id,
                     f"https://man.archlinux.org/man/{message.text}.{category}",
                 )
-            except Exception as e:
-                logging.error(f"[Error] {str(e)}")
+            except Exception as ex:
+                if shouldBotLog:
+                    logger.error(
+                        f"[{type(ex).__name__}] in message_answer(): {str(ex)}"
+                    )
 
 
 if __name__ == "__main__":
     if shouldBotLog:
-        logging.getLogger("requests").setLevel(logging.CRITICAL)
-        logging.basicConfig(
-            format="[%(asctime)s] %(filename)s:%(lineno)d %(levelname)s - %(message)s",
-            level=logging.INFO,
-            filename="log.log",
-            datefmt="%d.%m.%Y %H:%M:%S",
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.INFO)
+
+        formatter = logging.Formatter(
+            "[%(asctime)s] %(filename)s:%(lineno)d %(levelname)s - %(message)s"
         )
+        # format without time, for easy use of "systemctl"
+        formatter_without_time = logging.Formatter(
+            "%(filename)s:%(lineno)d %(levelname)s - %(message)s"
+        )
+
+        stream_handler = logging.StreamHandler()
+        stream_handler.setLevel(logging.INFO)
+        stream_handler.setFormatter(formatter_without_time)
+
+        file_handler = logging.FileHandler("log.log")
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(formatter)
+
+        logger.addHandler(stream_handler)
+        logger.addHandler(file_handler)
+
     while True:
         try:
             bot.polling(none_stop=True)
         except Exception as ex:
+            if shouldBotLog:
+                logger.error(f"[{type(ex).__name__}] in bot.polling(): {str(ex)}")
             time.sleep(5)
