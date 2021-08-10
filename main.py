@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Made by @alcortazzo
 
 import sys
