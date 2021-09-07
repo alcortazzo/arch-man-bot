@@ -3,44 +3,26 @@
 # Made by @alcortazzo
 
 import sys
-import time
-import urllib
+import logging
+import grequests
 from os import getenv
-from telebot import TeleBot, types
 
+from aiogram import Bot, Dispatcher, executor, types
+from aiogram.types import InlineQuery, InputTextMessageContent, InlineQueryResultArticle
 
-Bot_TOKEN = getenv("arch_man_bot_token")
-if Bot_TOKEN is None:
+logging.basicConfig(level=logging.DEBUG)
+
+API_TOKEN = getenv("arch_man_bot_token")
+if API_TOKEN is None:
     sys.exit("You must set <arch_man_bot_token> environment variable!")
 
-bot = TeleBot(Bot_TOKEN)
-shouldBotLog = True  # if False bot will not create and keep log.log file
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher(bot)
 
 
-def get_status(command, page):
-    link = f"https://man.archlinux.org/man/{command}.{page}"
-    try:
-        response = urllib.request.urlopen(link)
-        return response.getcode()
-    except urllib.error.URLError as ex:
-        if shouldBotLog:
-            logger.info(f"{link} : {str(ex)}")
-
-
-def results_compiler(id, title, description, message):
-    answer = types.InlineQueryResultArticle(
-        id=id,
-        title=title,
-        description=description,
-        input_message_content=types.InputTextMessageContent(message_text=message),
-    )
-    return answer
-
-
-@bot.message_handler(commands=["start"])
-def cmd_start(message):
-    bot.send_message(
-        message.chat.id,
+@dp.message_handler(commands=["start"])
+async def send_welcome(message: types.Message):
+    await message.reply(
         "This is an <a href='https://github.com/alcortazzo/arch-man-bot'>open source</a> "
         "bot that can search man-pages on man.archlinux.org for you in in-line mode or "
         "directly in this chat."
@@ -50,10 +32,9 @@ def cmd_start(message):
     )
 
 
-@bot.message_handler(commands=["help"])
-def cmd_help(message):
-    bot.send_message(
-        message.chat.id,
+@dp.message_handler(commands=["help"])
+async def send_welcome(message: types.Message):
+    await message.reply(
         "To search with this bot you can easily type @archmanbot and then something you "
         "want to search. For example:"
         "\n\n`@archmanbot lsblk`\n`@archmanbot man`\n`@archmanbot cfdisk`"
@@ -62,85 +43,49 @@ def cmd_help(message):
     )
 
 
-@bot.inline_handler(lambda query: len(query.query) == 0)
-def default_query(inline_query):
-    empty = types.InlineQueryResultArticle()
-    try:
-        bot.answer_inline_query(inline_query.id, empty)
-    except Exception as ex:
-        if shouldBotLog:
-            logger.info(str(ex))
+def get_status(command):
+    urls = []
+
+    for page in range(1, 10):
+        urls.append(f"https://man.archlinux.org/man/{command}.{page}")
+
+    responses_ = (grequests.get(url) for url in urls)
+    responses = grequests.map(responses_)
+
+    return [response.status_code for response in responses]
 
 
-@bot.inline_handler(lambda query: len(query.query) >= 1)
-def query_text(query):
-    answers = []
+@dp.message_handler()
+async def message_answer(message: types.Message):
+    responses = get_status(message.text)
 
     for category in range(1, 10):
-        if get_status(query.query, category) == 200:
-            answer = results_compiler(
-                category,
-                f"{query.query}({category})",
-                "Send link to this man page",
-                f"https://man.archlinux.org/man/{query.query}.{category}",
+        if responses[category - 1] == 200:
+            await message.reply(
+                f"https://man.archlinux.org/man/{message.text}.{category}"
             )
-            answers.append(answer)
-
-    try:
-        bot.answer_inline_query(query.id, answers, is_personal=False)
-    except Exception as ex:
-        if shouldBotLog:
-            logger.error(f"[{type(ex).__name__}] in query_text(): {str(ex)}")
 
 
-@bot.message_handler(
-    func=lambda message: message.content_type == "text" and message.text
-)
-def message_answer(message):
+@dp.inline_handler(lambda inline_query: len(inline_query.query) >= 1)
+async def query_answer(inline_query: InlineQuery):
+    answers = []
+    responses = get_status(inline_query.query)
+
     for category in range(1, 10):
-        if get_status(message.text, category) == 200:
-            try:
-                bot.send_message(
-                    message.chat.id,
-                    f"https://man.archlinux.org/man/{message.text}.{category}",
+        if responses[category - 1] == 200:
+            answers.append(
+                InlineQueryResultArticle(
+                    id=category,
+                    title=f"{inline_query.query}({category})",
+                    description="Send link to this man page",
+                    input_message_content=InputTextMessageContent(
+                        message_text=f"https://man.archlinux.org/man/{inline_query.query}.{category}"
+                    ),
                 )
-            except Exception as ex:
-                if shouldBotLog:
-                    logger.error(
-                        f"[{type(ex).__name__}] in message_answer(): {str(ex)}"
-                    )
+            )
+
+    await bot.answer_inline_query(inline_query.id, answers, is_personal=False)
 
 
 if __name__ == "__main__":
-    if shouldBotLog:
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.setLevel(logging.INFO)
-
-        formatter = logging.Formatter(
-            "[%(asctime)s] %(filename)s:%(lineno)d %(levelname)s - %(message)s"
-        )
-        # format without time, for easy use of "systemctl"
-        formatter_without_time = logging.Formatter(
-            "%(filename)s:%(lineno)d %(levelname)s - %(message)s"
-        )
-
-        stream_handler = logging.StreamHandler()
-        stream_handler.setLevel(logging.INFO)
-        stream_handler.setFormatter(formatter_without_time)
-
-        file_handler = logging.FileHandler("log.log")
-        file_handler.setLevel(logging.INFO)
-        file_handler.setFormatter(formatter)
-
-        logger.addHandler(stream_handler)
-        logger.addHandler(file_handler)
-
-    while True:
-        try:
-            bot.polling(none_stop=True)
-        except Exception as ex:
-            if shouldBotLog:
-                logger.error(f"[{type(ex).__name__}] in bot.polling(): {str(ex)}")
-            time.sleep(5)
+    executor.start_polling(dp, skip_updates=True)
