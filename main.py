@@ -5,18 +5,24 @@
 import sys
 import logging
 import requests
-from os import getenv
+from os import getenv, path
 
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types import InlineQuery, InputTextMessageContent, InlineQueryResultArticle
 
 logging.basicConfig(level=logging.INFO)
 
-API_TOKEN = getenv("arch_man_bot_token")
-if API_TOKEN is None:
+if getenv("CREDENTIALS_DIRECTORY"):
+    print("using bot token provided by init")
+    with open(path.join(getenv("CREDENTIALS_DIRECTORY"), "bot-token"), "r") as token:
+        API_TOKEN = token.readline()
+else:
+    API_TOKEN = getenv("arch_man_bot_token")
+
+if not API_TOKEN:
     sys.exit("You must set <arch_man_bot_token> environment variable!")
 
-bot = Bot(token=API_TOKEN)
+bot = Bot(token=API_TOKEN.rstrip("\n"))
 dp = Dispatcher(bot)
 
 
