@@ -4,13 +4,13 @@
 
 import sys
 import logging
-import grequests
+import requests
 from os import getenv
 
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types import InlineQuery, InputTextMessageContent, InlineQueryResultArticle
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 API_TOKEN = getenv("arch_man_bot_token")
 if API_TOKEN is None:
@@ -44,47 +44,30 @@ async def send_welcome(message: types.Message):
 
 
 def get_status(command):
-    urls = []
-
-    for page in range(1, 10):
-        urls.append(f"https://man.archlinux.org/man/{command}.{page}")
-
-    responses_ = (grequests.get(url) for url in urls)
-    responses = grequests.map(responses_)
-
-    return [response.status_code for response in responses]
+    url = f"https://man.archlinux.org/man/{command}"
+    response = requests.get(url)
+    return response
 
 
 @dp.message_handler()
 async def message_answer(message: types.Message):
-    responses = get_status(message.text)
+    response = get_status(message.text)
 
-    for category in range(1, 10):
-        if responses[category - 1] == 200:
-            await message.reply(
-                f"https://man.archlinux.org/man/{message.text}.{category}"
-            )
+    if response.status_code == 200:
+        await message.reply(response.url)
 
 
 @dp.inline_handler(lambda inline_query: len(inline_query.query) >= 1)
 async def query_answer(inline_query: InlineQuery):
-    answers = []
-    responses = get_status(inline_query.query)
-
-    for category in range(1, 10):
-        if responses[category - 1] == 200:
-            answers.append(
-                InlineQueryResultArticle(
-                    id=category,
-                    title=f"{inline_query.query}({category})",
-                    description="Send link to this man page",
-                    input_message_content=InputTextMessageContent(
-                        message_text=f"https://man.archlinux.org/man/{inline_query.query}.{category}"
-                    ),
-                )
-            )
-
-    await bot.answer_inline_query(inline_query.id, answers, is_personal=False)
+    response = get_status(inline_query.query)
+    if response.status_code == 200:
+        answer = InlineQueryResultArticle(
+            id=response.url[-1:],
+            title=f"{inline_query.query}({response.url[-1:]})",
+            description="Send link to this man page",
+            input_message_content=InputTextMessageContent(message_text=response.url),
+        )
+    await bot.answer_inline_query(inline_query.id, results=[answer], is_personal=False)
 
 
 if __name__ == "__main__":
